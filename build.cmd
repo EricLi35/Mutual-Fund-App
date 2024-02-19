@@ -1,0 +1,1 @@
+pipenv run nuitka --standalone  --onefile --enable-plugin=tk-inter  --disable-console GUI_Interface.py

@@ -2,5 +2,6 @@ qa.txt
 Pipfile
 Pipfile.lock
 __pycache__
-cache.db
-show_mutual_fund_history_graph.json
+*.db
+*.json
+images
