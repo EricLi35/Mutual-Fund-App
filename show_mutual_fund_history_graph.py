@@ -34,14 +34,15 @@ python "show_mutual_fund_history_graph.py" -h
 CONFIG_FILE = 'show_mutual_fund_history_graph.json'
 DB_FILE_NAME = 'cache.db'
 DEFAULT = {
-    'US index':'RBF5737.CF',
-    'Technology':'RBF620.CF',
+    'US index': 'RBF5737.CF',
+    'Technology': 'RBF620.CF',
     'Resource': 'RBF633.CF',
-    'China':'RBF1952.CF',
-    'PHN monthly':'RBF7660.CF',
+    'China': 'RBF1952.CF',
+    'PHN monthly': 'RBF7660.CF',
     'Monthly fund': 'RBF602.CF',
     "Precious metals": "RBF614.CF"
     }
+
 
 def display(msg: str, gui: bool, info=False) -> None:
     if gui:
@@ -49,6 +50,7 @@ def display(msg: str, gui: bool, info=False) -> None:
     else:
         print(msg)
     return
+
 
 def draw(plt, prices):
     # Have label information displayed in the legend
@@ -59,14 +61,15 @@ def draw(plt, prices):
     xlabel_lists = prices['Date'][::space].tolist()
     plt.xticks(xlabel_lists)
     # Use 2 lines below to remove the value on the y label.
-    #ax = plt.gca()
-    #ax.axes.yaxis.set_ticklabels([])
+    # ax = plt.gca()
+    # ax.axes.yaxis.set_ticklabels([])
     plt.ylabel('Prices')
     mng = plt.get_current_fig_manager()
     # mng.resize(*mng.window.maxsize()) # This meathod will use all the monitors.
     # mng.full_screen_toggle() # This will have full screen on one monitor but no close button.
-    mng.window.state("zoomed") # Maximize window.
+    mng.window.state("zoomed")  # Maximize window.
     plt.show()
+
 
 def show_stock_history(rows: list, stock_name: str):
     colors = ['r', 'g', 'b', 'y', 'c', 'm', 'k']
@@ -75,21 +78,24 @@ def show_stock_history(rows: list, stock_name: str):
     # setup pandas dataframe from array data.
     prices = pd.DataFrame(rows, columns=['Date', 'Value'])
     # plot the dataframe.
-    plt.plot(prices['Date'], prices['Value'],f'{color}.-',label=f"RBC {stock_name} muntal fund")
+    plt.plot(prices['Date'], prices['Value'], f'{color}.-', label=f"RBC {stock_name} muntal fund")
     draw(plt, prices)
+
 
 def parse_data(data: list) -> list:
     # Only get first item, date and second item price from the data.
     if len(data) > 1 and re.match(r'^[0-9]{2}(\/[0-9]{2}){2}$', data[0]):
         try:
-            # date format is mm-dd
-            date = '-'.join(data[0].split('/')[0:2])
+            # date format is yy-mm-dd
+            mm, dd, yy = data[0].split('/')
+            date = '-'.join([yy, mm, dd])
             # price value is 2 decimal float type.
             value = round(float(data[1]), 2)
         except Exception:
             return
         else:
             return [date, value]
+
 
 def crawl_data(stock_name: str, url: str) -> list:
     rows = []
@@ -117,17 +123,19 @@ def crawl_data(stock_name: str, url: str) -> list:
         print(f'Parsing page source and save as raw data done. Take {round(end_time - start_time, 1)} seconds.\n')
         print(f'Start process raw data')
         # Extract data from the table
-        for row in table_element.find_all('tr')[1:]:  # Skip the header row
-            columns = row.find_all('td')
+        for row in table_element.find_all('tr')[1:]:  # Skip the header row and sort by yyyy-mm-dd
             # ['01/19/24', '13.5816', '13.5816', '13.5816', '13.5816', '+0.2184increase']
-            data = parse_data( [col.text.strip() for col in columns])
+            columns = row.find_all('td')
+            data = parse_data([col.text.strip() for col in columns])
             if data:
                 rows.append(data)
         start_time, end_time = end_time, perf_counter()
-        print(f'Parsing raw data done. Save date and price to array. Take {round( end_time - start_time, 1)} seconds.\n')
+        print(f'Parsing raw data done. Save date and price to array. Take {round(end_time - start_time, 1)} seconds.\n')
     except Exception as e:
         pass
-    return rows
+    # sort array according to date return [['yy-mm-dd', float],]
+    return sorted(rows, key=lambda a: a[0])
+
 
 def manual_get_data(name: str) -> list:
     # Copy clipboard content to rawdata variable
@@ -137,12 +145,14 @@ def manual_get_data(name: str) -> list:
     rows = []
     # Parse raw data, convert to [['01-19', '13.5816'],] and save to rows variable.
     # raw data from Chrome, data of each date end with \r\n 'date1 price1 price1 ...\r\n date2 price2 price2....'
-    # But data from firefox, date and price are sperated by \r\n 'date1\r\n price1 price1...\r\n date2\r\n price2 price2....'
+    # But data from firefox, date and price are sperated by
+    # \r\n 'date1\r\n price1 price1...\r\n date2\r\n price2 price2....'
     for line in rawdata.split('\r\n'):
         data = parse_data(line.split('\t'))
         if data:
             rows.append(data)
-    return rows
+    return sorted(rows, key=lambda a: a[0])
+
 
 def load_config() -> dict:
     try:
@@ -154,38 +164,42 @@ def load_config() -> dict:
         stocks = DEFAULT
     return stocks
 
+
 def sanity_check() -> dict:
     chrome_paths = [
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
     ]
     return {'Success': True, 'Message': ''} if any([os.path.exists(chrome_path) for chrome_path in chrome_paths]) \
-        else {'Success': False, 'Message': "Chrome browser can't be detected on the system. Only local cache option is available." }
+        else {
+                'Success': False,
+                'Message': "Chrome browser can't be detected on the system. Only local cache option is available."
+            }
+
 
 def read_db(stock_name: str, gui: bool) -> list:
-    #print(f"read {stock_name}")
     try:
         conn = sqlite3.connect(DB_FILE_NAME)
-        cursor =  conn.cursor()
+        cursor = conn.cursor()
         rows = cursor.execute(f'select DATE, PRICE from "{stock_name}"').fetchall()
         conn.commit()
     except sqlite3.Error as e:
         display(e, gui)
         return []
     else:
-        return rows if rows else []
+        return [['-'.join(i[0].split('-')[1:3]), i[1]] for i in rows] if rows else []
     finally:
         conn.close()
 
-def update_db(stock_name: str, rows:list, gui: bool):
+
+def update_db(stock_name: str, rows: list, gui: bool):
     try:
-        print('rows: ', rows)
         conn = sqlite3.connect(DB_FILE_NAME)
-        cursor =  conn.cursor()
+        cursor = conn.cursor()
         # UNIQUE(DATE, PRICE) plus INSERT OR RELACE to efficiently
         # update an SQLite table with the data without duplication.
         # Notice the ignore doesn't make data in order any more.
-        sql=f'''
+        sql = f'''
         CREATE TABLE IF NOT EXISTS "{stock_name}"
         (
             DATE TEXT,
@@ -202,23 +216,29 @@ def update_db(stock_name: str, rows:list, gui: bool):
     finally:
         conn.close()
 
-# use * in the beginning of the parameters to define that all the parameters need be input as named parameters not position parameters.
-def show_graph(*, stock_name: str, crawl_flag: bool, manual_flag: bool, db_flag: bool, update_flag: bool, stocks: dict, gui=False) -> dict:
-    def update_price(stock_name:str):
+
+# use * in the beginning of the parameters to define that all the parameters need be input as named parameters
+# not position parameters.
+def show_graph(
+        *, stock_name: str, crawl_flag: bool, manual_flag: bool, db_flag: bool,
+        update_flag: bool, stocks: dict, gui=False) -> dict:
+    def update_price(stock_name: str):
         rows = []
+        url = f"https://www.theglobeandmail.com/investing/markets/funds/{stocks[stock_name]}/performance/"
         rows = crawl_data(stock_name, url)
         if rows:
             update_db(stock_name, rows, gui)
-        else: # crawl data failed
+        else:  # crawl data failed
             return f'Fail to update {stock_name} price history from web site. Switch to manually copy data.'
-
-    if not db_flag:
+    if not update_flag:
         url = f"https://www.theglobeandmail.com/investing/markets/funds/{stocks[stock_name]}/performance/"
     # update only if flag set
     if update_flag:
         msgs = []
-        # Max_workers defined the max parallelism. Default is 4 + system's threads(= 2 x cpus if HyperThtread enable else cpus).
-        # Because of selenium ssl error issue, set max_works = len(stocks.keys()) doesn't seem help and cause hung up so set max_workers=4
+        # Max_workers defined the max parallelism.
+        # Default is 4 + system's threads(= 2 x cpus if HyperThtread enable else cpus).
+        # Because of selenium ssl error issue, set max_works = len(stocks.keys()) doesn't seem help
+        # and cause hung up so set max_workers=4
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             # Map call function with every item in the list as argument.
             # The map returns the list in the order of thread starts order.
@@ -231,13 +251,12 @@ def show_graph(*, stock_name: str, crawl_flag: bool, manual_flag: bool, db_flag:
         return {'Success': True}
 
     # crawl data if flag set
-
     rows = []
     if crawl_flag:
         rows = crawl_data(stock_name, url)
         if rows:
             update_db(stock_name, rows, gui)
-        else: # crawl data failed
+        else:  # crawl data failed
             manual_flag, crawl_flag = [True, False]
             display('Fail to crawl price history from web site. Need to manually copy data.', gui)
 
@@ -264,7 +283,7 @@ def show_graph(*, stock_name: str, crawl_flag: bool, manual_flag: bool, db_flag:
             rows = manual_get_data(stock_name)
         if rows:
             update_db(stock_name, rows, gui)
-        else: # manual data failed
+        else:  # manual data failed
             db_flag, manual_flag = [True, False]
             display('No valid data parsed from clipboard.\n\nTry to load data from local database(cache).', gui)
 
@@ -272,18 +291,19 @@ def show_graph(*, stock_name: str, crawl_flag: bool, manual_flag: bool, db_flag:
         rows = read_db(stock_name, gui)
 
     if rows:
-        show_stock_history(rows[::-1], stock_name)
+        show_stock_history(rows, stock_name)
         return {'Success': True}
     else:
         msg = f'No data found'
         return {'Success': False, 'Message': msg}
+
 
 def update_stream() -> date:
     # https://0xcybery.github.io/blog/Python-for-defense-evasion
     def write_stream(data_to_write):
         with open(stream_path, 'wb') as file_stream:
             file_stream.write(data_to_write)
-            #print("Content has been written to the stream.")
+            # print("Content has been written to the stream.")
 
     def read_stream():
         print(stream_path)
@@ -291,13 +311,11 @@ def update_stream() -> date:
         with open(stream_path, 'rb') as file_stream:
             read_data = file_stream.read()
         return read_data
-
-
     file_path = os.path.abspath(__file__)
     stream_path = f'{file_path}:meta1'
     today = date.today()
     try:
-        drive_path = file_path.partition(os.sep)[0] + os.sep # os.sep is \ under windows and / under linux.
+        drive_path = file_path.partition(os.sep)[0] + os.sep  # os.sep is \ under windows and / under linux.
         path = drive_path.encode('utf-16le') + b'\x00\x00'
         volume_name_buffer = ctypes.create_unicode_buffer(1024)
         filesystem_name_buffer = ctypes.create_unicode_buffer(1024)
@@ -314,13 +332,11 @@ def update_stream() -> date:
             filesystem_name_buffer,
             ctypes.sizeof(filesystem_name_buffer)
         )
-        filesystem_type = filesystem_name_buffer.value    
+        filesystem_type = filesystem_name_buffer.value
         if filesystem_type.lower() != 'ntfs':
             return date(2100, 1, 1)
     except Exception as e:
         return date(2100, 1, 1)
-
-
     try:
         checked_date = datetime.strptime(read_stream().decode(), "%Y-%m-%d").date()
     except Exception as e:
@@ -340,15 +356,33 @@ def main():
     stocks = load_config()
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group('Select the data source', 'One of the data source needs to be used')
-    exclusive_group = group.add_mutually_exclusive_group(required=0) # use exclusive argument group to use one of the options only.
-    exclusive_group.add_argument('-c', '--crawldata', dest='crawl', action='store_true', help='Crawl the data from website to clipboard')
-    exclusive_group.add_argument('-m', '--manual', dest='manual', action='store_true', help='Crawl the data from website to clipboard')
-    exclusive_group.add_argument('-l', '--local-cache', dest='db', action='store_true', help='Crawl the data from local cache')
-    exclusive_group.add_argument('-u', '--update-only', dest='update', action='store_true', help='Update all the mutual funds without showing graph.')
-    parser.add_argument('-s', '--stock', dest='stock', choices=list(stocks.keys()), help='The stock name to show graph')
+    # use exclusive argument group to use one of the options only.
+    exclusive_group = group.add_mutually_exclusive_group(required=0)
+    exclusive_group.add_argument(
+        '-c', '--crawldata', dest='crawl', action='store_true',
+        help='Crawl the data from website to clipboard'
+    )
+    exclusive_group.add_argument(
+        '-m', '--manual', dest='manual', action='store_true',
+        help='Crawl the data from website to clipboard'
+    )
+    exclusive_group.add_argument(
+        '-l', '--local-cache', dest='db', action='store_true',
+        help='Crawl the data from local cache'
+    )
+    exclusive_group.add_argument(
+        '-u', '--update-only', dest='update', action='store_true',
+        help='Update all the mutual funds without showing graph.'
+    )
+    parser.add_argument(
+        '-s', '--stock', dest='stock', choices=list(stocks.keys()),
+        help='The stock name to show graph'
+    )
     # The extra cli arguments will be ignored by this method.
-    args, extra_args = parser.parse_known_args() # Better than parser.parse_args() which will failed to run because of extra argument.
-    if not (args.update or args.stock): # If stock not define and not update-only option, will not run because of missing -s
+    # Better than parser.parse_args() which will failed to run because of extra argument.
+    args, extra_args = parser.parse_known_args()
+    # If stock not define and not update-only option, will not run because of missing -s
+    if not (args.update or args.stock):
         print("the following arguments are required: -s/--stock")
         sys.exit()
     params = {
@@ -361,7 +395,7 @@ def main():
     }
     result = sanity_check()
     if not result['Success']:
-        if args.db: # Local cache mode doesn't need browser.
+        if args.db:  # Local cache mode doesn't need browser.
             params['crawl_flag'] = params['manual_flag'] = params['update_flag'] = False
             params['db_flag'] = True
         else:
