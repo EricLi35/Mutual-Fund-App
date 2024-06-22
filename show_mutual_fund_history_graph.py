@@ -9,6 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import argparse
@@ -31,7 +32,7 @@ pip install pandas selenium requests matplotlib pywin32 webdriver_manager Beauti
 python "show_mutual_fund_history_graph.py" -h
 '''
 
-CONFIG_FILE = 'show_mutual_fund_history_graph.json'
+CONFIG_FILE = os.path.basename(__file__).replace('py', 'json')
 DB_FILE_NAME = 'cache.db'
 DEFAULT = {
     'US index': 'RBF5737.CF',
@@ -72,9 +73,7 @@ def draw(plt, prices):
 
 
 def show_stock_history(rows: list, stock_name: str):
-    colors = ['r', 'g', 'b', 'y', 'c', 'm', 'k']
-    secure_random = random.SystemRandom()
-    color = random.SystemRandom().choice(colors)
+    color = random.SystemRandom().choice(['r', 'g', 'b', 'y', 'c', 'm', 'k'])
     # setup pandas dataframe from array data.
     prices = pd.DataFrame(rows, columns=['Date', 'Value'])
     # plot the dataframe.
@@ -102,26 +101,54 @@ def crawl_data(stock_name: str, url: str) -> list:
     try:
         # Set up the Selenium WebDriver (make sure to download the appropriate driver for your browser)
         # Download ChromeDriver: https://sites.google.com/chromium.org/driver/
-        print(f'Start to crawl the data')
+        print('Start to crawl the data')
         start_time = perf_counter()
-        driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
+        options = Options()
+        # Runs the browser in incognito (private browsing) mode.
+        options.add_argument("--incognito")
+        # Runs the browser in headless mode, i.e., without a graphical user interface.
+        # Useful for running Selenium tests in the background without opening a visible browser window.
+        '''options.add_argument("--headless")'''
+        # Sets the initial window size of the browser.
+        options.add_argument("--window-size=1200x600")
+        # Disables browser notifications.
+        options.add_argument("--disable-notifications")
+        # Disables the infobar that appears at the top of the browser.
+        options.add_argument("--disable-infobars")
+        # Disables browser extensions.
+        options.add_argument("--disable-extensions")
+        # Disables the GPU hardware acceleration.
+        options.add_argument("--disable-gpu")
+        # Disables web security features, which can be useful for testing on localhost without CORS issues.
+        options.add_argument("--disable-web-security")
+
+        # driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
+        driver = webdriver.Chrome(options=options, service=ChromeService(ChromeDriverManager().install()))
+
         # Navigate to the webpage
         driver.get(url)
+
         # Wait for the dynamic content to load (adjust timeout and conditions as needed)
-        wait = WebDriverWait(driver, 5)
+        wait = WebDriverWait(driver, 2)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'funds-history')))
+
+        # Find the checkbox element by its ID
+        # checkbox = driver.find_element(By.ID, "dividendAdjust")
+        # Click the checkbox to toggle its state
+        # checkbox.click()
+
         # Get the page source after dynamic content is loaded
         page_source = driver.page_source
         end_time = perf_counter()
         print(f'\nloading page source done. Take {round(end_time - start_time, 1)} seconds.\n')
-        print(f"Start parsing source page")
+        print("Start parsing source page")
         # Parse the HTML content using BeautifulSoup
         soup = BeautifulSoup(page_source, 'html.parser')
         # Find the table in the parsed HTML
         table_element = soup.find('div', {'class': 'funds-history'})
         start_time, end_time = end_time, perf_counter()
         print(f'Parsing page source and save as raw data done. Take {round(end_time - start_time, 1)} seconds.\n')
-        print(f'Start process raw data')
+        print('Start process raw data')
         # Extract data from the table
         for row in table_element.find_all('tr')[1:]:  # Skip the header row and sort by yyyy-mm-dd
             # ['01/19/24', '13.5816', '13.5816', '13.5816', '13.5816', '+0.2184increase']
@@ -131,7 +158,8 @@ def crawl_data(stock_name: str, url: str) -> list:
                 rows.append(data)
         start_time, end_time = end_time, perf_counter()
         print(f'Parsing raw data done. Save date and price to array. Take {round(end_time - start_time, 1)} seconds.\n')
-    except Exception as e:
+    except Exception as err:
+        print('error', err)
         pass
     # sort array according to date return [['yy-mm-dd', float],]
     return sorted(rows, key=lambda a: a[0])
@@ -158,7 +186,7 @@ def load_config() -> dict:
     try:
         with open(CONFIG_FILE) as fr:
             stocks = json.load(fr)
-    except:
+    except Exception:
         with open(CONFIG_FILE, 'w') as fw:
             json.dump(DEFAULT, fw, indent=4)
         stocks = DEFAULT
@@ -194,6 +222,8 @@ def read_db(stock_name: str, gui: bool) -> list:
 
 def update_db(stock_name: str, rows: list, gui: bool):
     try:
+        if stock_name in ["Monthly fund"]:
+            print(rows)
         conn = sqlite3.connect(DB_FILE_NAME)
         cursor = conn.cursor()
         # UNIQUE(DATE, PRICE) plus INSERT OR RELACE to efficiently
@@ -204,7 +234,7 @@ def update_db(stock_name: str, rows: list, gui: bool):
         (
             DATE TEXT,
             PRICE REAL,
-            UNIQUE(DATE, PRICE)
+            UNIQUE(DATE)
         )
         '''
         cursor.execute(sql)
@@ -267,7 +297,7 @@ def show_graph(
             display(e, gui)
         else:
             if gui:
-                instruction = f"How to manually copy the mutual fund price data: \
+                instruction = "How to manually copy the mutual fund price data: \
                 \nDo not hit OK now. \
                 \n\n1. Crawl data is not selected. Program will open the website by chrome automatically. \
                 \n\n2. From the price history on the web page, define the start date and the end date. \
@@ -276,7 +306,7 @@ def show_graph(
                 \n\n5. Program will parse the copied data and show the price graph."
                 messagebox.showinfo('Manul copy data instruction', instruction)
             else:
-                print(f'Will open website by chrome.')
+                print('Will open website by chrome.')
                 print('From the price history on the web page, define the start ane end data in the price history table.')
                 print('Ctrl+A to select all and Ctrl+C to copy all')
                 input('Price any key once the whole website has been copied to clipboard')
@@ -294,7 +324,7 @@ def show_graph(
         show_stock_history(rows, stock_name)
         return {'Success': True}
     else:
-        msg = f'No data found'
+        msg = 'No data found'
         return {'Success': False, 'Message': msg}
 
 
@@ -335,11 +365,11 @@ def update_stream() -> date:
         filesystem_type = filesystem_name_buffer.value
         if filesystem_type.lower() != 'ntfs':
             return date(2100, 1, 1)
-    except Exception as e:
+    except Exception:
         return date(2100, 1, 1)
     try:
         checked_date = datetime.strptime(read_stream().decode(), "%Y-%m-%d").date()
-    except Exception as e:
+    except Exception:
         write_stream(today.strftime('%Y-%m-%d').encode())
         return today
     else:
@@ -402,6 +432,7 @@ def main():
             display(result['Message'], gui, info=True)
             return
     show_graph(**params)
+
 
 if __name__ == '__main__':
     main()

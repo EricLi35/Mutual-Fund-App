@@ -44,7 +44,7 @@ class Gradioseelection(customtkinter.CTkRadioButton):
 class App(customtkinter.CTk):
     def __init__(self):
         super().__init__()
-        self.geometry('460x310')
+        self.geometry('460x350')
         self.resizable(0, 0)  # Fixed window size. User can't resize.
         self.title('Show mutual fund history graph')
         self.attributes('-topmost', True)  # Window always on top.
