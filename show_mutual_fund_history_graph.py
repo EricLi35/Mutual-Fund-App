@@ -53,7 +53,12 @@ def display(msg: str, gui: bool, info=False) -> None:
     return
 
 
-def draw(plt, prices):
+def draw(plt, prices, color, stock_name):
+    if  value := plt.gca().get_ylabel():
+        # print("Label is valued Prices detected", value)
+        plt.clf()
+    plt.plot(prices['Date'], prices['Value'], f'{color}.-', label=f"RBC {stock_name} muntal fund")
+
     # Have label information displayed in the legend
     plt.legend()
     # Have 20 dispalyed label on x axis.
@@ -77,8 +82,8 @@ def show_stock_history(rows: list, stock_name: str):
     # setup pandas dataframe from array data.
     prices = pd.DataFrame(rows, columns=['Date', 'Value'])
     # plot the dataframe.
-    plt.plot(prices['Date'], prices['Value'], f'{color}.-', label=f"RBC {stock_name} muntal fund")
-    draw(plt, prices)
+    
+    draw(plt, prices, color, stock_name)
 
 
 def parse_data(data: list) -> list:
